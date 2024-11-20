@@ -1,10 +1,12 @@
 import importlib.resources
 from dataclasses import dataclass, field
 from string import Template
+import json
 
 import boto3
 from gha_runner import gh
 from gha_runner.clouddeployment import CreateCloudInstance
+from gha_runner.helper import output
 
 
 @dataclass
@@ -133,3 +135,18 @@ class StartAWS(CreateCloudInstance):
         # Otherwise, use the default config
         else:
             waiter.wait(InstanceIds=ids)
+
+    def set_instance_mapping(self, mapping: dict[str, str]):
+        """Set the instance mapping.
+
+        Sets the instance mapping for the runner to be used by the stop action.
+
+        Parameters
+        ----------
+        mapping : dict[str, str]
+            A dictionary of instance IDs and labels.
+
+        """
+        github_labels = list(mapping.values())
+        output("mapping", json.dumps(mapping))
+        output("instances", json.dumps(github_labels))
