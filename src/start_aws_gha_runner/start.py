@@ -11,6 +11,37 @@ from gha_runner.helper import output
 
 @dataclass
 class StartAWS(CreateCloudInstance):
+    """Class to start GitHub Actions runners on AWS.
+
+    Parameters
+    ----------
+    image_id : str
+        The ID of the AMI to use.
+    instance_type : str
+        The type of instance to use.
+    home_dir : str
+        The home directory of the user.
+    repo : str
+        The repository to use.
+    region_name : str
+        The name of the region to use.
+    tags : list[dict[str, str]]
+        A list of tags to apply to the instance. Defaults to an empty list.
+    gh_runner_tokens : list[str]
+        A list of GitHub runner tokens. Defaults to an empty list.
+    labels : str
+        A comma-separated list of labels to apply to the runner. Defaults to an empty string.
+    subnet_id : str
+        The ID of the subnet to use. Defaults to an empty string.
+    security_group_id : str
+        The ID of the security group to use. Defaults to an empty string.
+    iam_role : str
+        The name of the IAM role to use. Defaults to an empty string.
+    script : str
+        The script to run on the instance. Defaults to an empty string.
+
+    """
+
     image_id: str
     instance_type: str
     home_dir: str
