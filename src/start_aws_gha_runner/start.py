@@ -84,6 +84,15 @@ class StartAWS(CreateCloudInstance):
                 raise Exception(f"Error parsing user data template: {e}")
 
     def create_instances(self) -> dict[str, str]:
+        """Create instances on AWS.
+
+        Creates and registers instances on AWS using the provided parameters.
+
+        Returns
+        -------
+        dict[str, str]
+            A dictionary of instance IDs and labels.
+        """
         if not self.gh_runner_tokens:
             raise ValueError(
                 "No GitHub runner tokens provided, cannot create instances."
