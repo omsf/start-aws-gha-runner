@@ -28,8 +28,6 @@ class StartAWS(CreateCloudInstance):
 
         Parameters
         ----------
-        count : int
-            The number of instances to create.
         user_data_params : dict
             A dictionary of parameters to pass to the user
 
