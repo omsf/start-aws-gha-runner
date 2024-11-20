@@ -127,6 +127,18 @@ class StartAWS(CreateCloudInstance):
         return id_dict
 
     def wait_until_ready(self, ids: list[str], **kwargs):
+        """Wait until instances are running.
+
+        Waits until the instances are running before continuing.
+
+        Parameters
+        ----------
+        ids : list[str]
+            A list of instance IDs to wait for.
+        kwargs : dict
+            A dictionary of custom configuration options for the waiter.
+
+        """
         ec2 = boto3.client("ec2", self.region_name)
         waiter = ec2.get_waiter("instance_running")
         # Pass custom config for the waiter
