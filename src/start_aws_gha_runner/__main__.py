@@ -23,7 +23,7 @@ def main():
     # Check that everything exists
     check_required_env_vars()
     # The timeout is infallible
-    timeout = os.environ["INPUT_GH_TIMEOUT"]
+    timeout = int(os.environ["INPUT_GH_TIMEOUT"])
 
     token = os.environ["GH_PAT"]
     # If the repo is not set, use the calling repo
