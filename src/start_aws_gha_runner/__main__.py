@@ -16,11 +16,10 @@ def main():
     # Check that everything exists
     check_required_env_vars()
     # The timeout is infallible
-    timeout = int(os.environ["INPUT_GH_TIMEOUT"])
-    # timeout = os.environ.get("INPUT_GH_TIMEOUT")
-    # gh_timeout = 1200
-    # if timeout is not None and timeout != "":
-    #     gh_timeout = int(timeout)
+    timeout = os.environ.get("INPUT_GH_TIMEOUT")
+    gh_timeout = 1200
+    if timeout is not None and timeout != "":
+        gh_timeout = int(timeout)
 
     token = os.environ["GH_PAT"]
     # If the repo is not set, use the calling repo
@@ -41,7 +40,7 @@ def main():
         cloud_params=aws_params,
         gh=gh,
         count=instance_count,
-        timeout=timeout,
+        timeout=gh_timeout,
     )
     # This will output the instance ids for using workflow sytnax
     deployment.start_runner_instances()
