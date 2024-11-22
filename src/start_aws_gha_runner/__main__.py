@@ -1,4 +1,4 @@
-from start_aws_gha_runner.input import parse_aws_params
+from start_aws_gha_runner.input import parse_aws_params, get_var_if_not_empty
 from start_aws_gha_runner.start import StartAWS
 from gha_runner.gh import GitHubInstance
 from gha_runner.clouddeployment import DeployInstance
@@ -10,13 +10,6 @@ def check_required_env_vars():
     for req in required:
         if req not in os.environ:
             raise Exception(f"Missing required environment variable {req}")
-
-
-def get_var_if_not_empty(var_name, default):
-    var = os.environ.get(var_name)
-    if var is None or var == "":
-        return default
-    return var
 
 
 def main():

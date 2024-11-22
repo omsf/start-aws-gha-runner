@@ -14,6 +14,13 @@ def _env_parse_helper(
     return params
 
 
+def get_var_if_not_empty(var_name, default):
+    var = os.environ.get(var_name)
+    if var is None or var == "":
+        return default
+    return var
+
+
 def parse_aws_params() -> dict:
     params = {}
     ami = os.environ.get("INPUT_AWS_IMAGE_ID")
