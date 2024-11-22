@@ -12,19 +12,23 @@ def check_required_env_vars():
             raise Exception(f"Missing required environment variable {req}")
 
 
+def get_var_if_not_empty(var_name, default):
+    var = os.environ.get(var_name)
+    if var is None or var == "":
+        return default
+    return var
+
+
 def main():
     # Check that everything exists
     check_required_env_vars()
     # The timeout is infallible
-    timeout = os.environ.get("INPUT_GH_TIMEOUT")
-    gh_timeout = 1200
-    if timeout is not None and timeout != "":
-        gh_timeout = int(timeout)
+    timeout = os.environ["INPUT_GH_TIMEOUT"]
 
     token = os.environ["GH_PAT"]
     # If the repo is not set, use the calling repo
     calling_repo = os.environ["GITHUB_REPOSITORY"]
-    repo = os.environ.get("INPUT_REPO", calling_repo)
+    repo = get_var_if_not_empty("INPUT_REPO", calling_repo)
     if repo == "":
         raise Exception("Repo cannot be empty")
 
@@ -40,7 +44,7 @@ def main():
         cloud_params=aws_params,
         gh=gh,
         count=instance_count,
-        timeout=gh_timeout,
+        timeout=timeout,
     )
     # This will output the instance ids for using workflow sytnax
     deployment.start_runner_instances()
