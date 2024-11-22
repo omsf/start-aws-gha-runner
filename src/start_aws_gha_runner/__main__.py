@@ -11,6 +11,7 @@ def check_required_env_vars():
         if req not in os.environ:
             raise Exception(f"Missing required environment variable {req}")
 
+
 def main():
     # Check that everything exists
     check_required_env_vars()
@@ -25,6 +26,8 @@ def main():
     # If the repo is not set, use the calling repo
     calling_repo = os.environ["GITHUB_REPOSITORY"]
     repo = os.environ.get("INPUT_REPO", calling_repo)
+    if repo == "":
+        raise Exception("Repo cannot be empty")
 
     # This is infallable because it has a default value
     instance_count = int(os.environ["INPUT_INSTANCE_COUNT"])
