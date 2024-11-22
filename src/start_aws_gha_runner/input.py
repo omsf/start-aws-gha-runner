@@ -35,7 +35,9 @@ def parse_aws_params() -> dict:
     )
     params = _env_parse_helper(params, "INPUT_AWS_IAM_ROLE", "iam_role")
     params = _env_parse_helper(params, "INPUT_AWS_TAGS", "tags", is_json=True)
-    region_name = os.environ.get("INPUT_AWS_REGION_NAME")
+    region_name = get_var_if_not_empty(
+        "INPUT_AWS_REGION_NAME", os.environ.get("AWS_REGION")
+    )
     if region_name is not None:
         params["region_name"] = region_name
     home_dir = os.environ.get("INPUT_AWS_HOME_DIR")

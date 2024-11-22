@@ -17,7 +17,7 @@ inputs:
     description: "The type of instance to use for your runner. For example: t2.micro, t4g.nano, etc.. Will not start if not specified."
     required: false
   aws_region_name:
-    description: "The AWS region name to use for your runner. Will not start if not specified."
+    description: "The AWS region name to use for your runner. Defaults to AWS_REGION."
     required: false
   aws_security_group_id:
     description: "The AWS security group ID to use for your runner. Will use the account default security group if not specified."
