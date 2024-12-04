@@ -1,40 +1,57 @@
-from start_aws_gha_runner.input import parse_aws_params, get_var_if_not_empty
 from start_aws_gha_runner.start import StartAWS
 from gha_runner.gh import GitHubInstance
 from gha_runner.clouddeployment import DeployInstance
+from gha_runner.helper.input import EnvVarBuilder, check_required
 import os
 
 
-def check_required_env_vars():
-    required = ["GH_PAT", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
-    for req in required:
-        if req not in os.environ:
-            raise Exception(f"Missing required environment variable {req}")
-
-
 def main():
+    env = dict(os.environ)
+    required = ["GH_PAT", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
     # Check that everything exists
-    check_required_env_vars()
+    check_required(env, required)
     # The timeout is infallible
     timeout = int(os.environ["INPUT_GH_TIMEOUT"])
 
     token = os.environ["GH_PAT"]
-    # If the repo is not set, use the calling repo
-    calling_repo = os.environ["GITHUB_REPOSITORY"]
-    repo = get_var_if_not_empty("INPUT_REPO", calling_repo)
-    if repo == "":
+    # Make a copy of environment variables for immutability
+    env = dict(os.environ)
+    # instance_count = int(os.environ["INPUT_INSTANCE_COUNT"])
+
+    params = (
+        EnvVarBuilder(env)
+        .with_var("INPUT_AWS_IMAGE_ID", "image_id")
+        .with_var("INPUT_AWS_INSTANCE_TYPE", "instance_type")
+        .with_var("INPUT_AWS_SUBNET_ID", "subnet_id")
+        .with_var("INPUT_AWS_SECURITY_GROUP_ID", "security_group_id")
+        .with_var("INPUT_AWS_IAM_ROLE", "iam_role")
+        .with_var("INPUT_AWS_TAGS", "tags", is_json=True)
+        .with_var("INPUT_EXTRA_GH_LABELS", "labels")
+        .with_var("INPUT_AWS_HOME_DIR", "home_dir")
+        .with_var("INPUT_INSTANCE_COUNT", "instance_count", type_hint=int)
+        # This is the default case
+        .with_var("AWS_REGION", "region_name")
+        # This is the input case
+        .with_var("INPUT_AWS_REGION_NAME", "region_name")
+        # This is the default case
+        .with_var("GITHUB_REPOSITORY", "repo")
+        # This is the input case
+        .with_var("INPUT_GH_REPO", "repo")
+        .build()
+    )
+    repo = params["repo"]
+    # This needs to be handled here because the repo is required by the GitHub
+    # instance
+    if repo is None:
         raise Exception("Repo cannot be empty")
 
-    # This is infallable because it has a default value
-    instance_count = int(os.environ["INPUT_INSTANCE_COUNT"])
+    instance_count = params["instance_count"]
 
-    aws_params = parse_aws_params()
-    aws_params["repo"] = repo
     gh = GitHubInstance(token=token, repo=repo)
     # This will create a new instance of StartAWS and configure it correctly
     deployment = DeployInstance(
         provider_type=StartAWS,
-        cloud_params=aws_params,
+        cloud_params=params,
         gh=gh,
         count=instance_count,
         timeout=timeout,
