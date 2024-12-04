@@ -142,6 +142,10 @@ class StartAWS(CreateCloudInstance):
             raise ValueError(
                 "No instance type provided, cannot create instances."
             )
+        if not self.region_name:
+            raise ValueError(
+                "No region name provided, cannot create instances."
+            )
         ec2 = boto3.client("ec2", region_name=self.region_name)
         id_dict = {}
         for token in self.gh_runner_tokens:
