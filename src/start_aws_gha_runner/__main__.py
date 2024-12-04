@@ -45,7 +45,8 @@ def main():
     if repo is None:
         raise Exception("Repo cannot be empty")
 
-    instance_count = params["instance_count"]
+    # Instance count is not a keyword arg for StartAWS, so we remove it
+    instance_count = params.pop("instance_count")
 
     gh = GitHubInstance(token=token, repo=repo)
     # This will create a new instance of StartAWS and configure it correctly
