@@ -6,7 +6,7 @@ import json
 import boto3
 from gha_runner import gh
 from gha_runner.clouddeployment import CreateCloudInstance
-from gha_runner.helper import output
+from gha_runner.helper.workflow_cmds import output
 
 
 @dataclass
