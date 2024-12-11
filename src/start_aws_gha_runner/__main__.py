@@ -16,7 +16,6 @@ def main():
     token = os.environ["GH_PAT"]
     # Make a copy of environment variables for immutability
     env = dict(os.environ)
-    # instance_count = int(os.environ["INPUT_INSTANCE_COUNT"])
 
     params = (
         EnvVarBuilder(env)
