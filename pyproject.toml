@@ -4,18 +4,14 @@ version = "0.1.0"
 description = "Start an AWS GitHub Actions Runner"
 readme = "README.md"
 requires-python = ">=3.12"
+authors = [{ name = "Ethan Holz", email = "ethan.holz@omsf.io" }]
 dependencies = [
-    "boto3", 
-    "gha_runner @ git+https://github.com/ethanholz/gha-runner.git@refactor/convert-to-library"
+    "boto3",
+    "gha_runner @ git+https://github.com/ethanholz/gha-runner.git@refactor/convert-to-library",
 ]
 
 [project.optional-dependencies]
-test = [
-    "pytest",
-    "pytest-cov",
-    "moto[ec2]",
-    "responses"
-]
+test = ["pytest", "pytest-cov", "moto[ec2]", "responses"]
 
 [build-system]
 # We are not going to add versioningit at this time
@@ -29,11 +25,10 @@ where = ["src"]
 gha_runner = ["*.templ", "templates/*.templ"]
 
 [tool.pytest.ini_options]
-markers = ["slow: marks test as slow","main: marks the test for the main module"]
+markers = ["slow: marks test as slow"]
 
 [tool.ruff]
 line-length = 80
 
 [tool.ruff.lint]
 select = ["F", "E", "N"]
-
