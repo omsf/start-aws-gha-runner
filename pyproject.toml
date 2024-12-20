@@ -22,7 +22,7 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-gha_runner = ["*.templ", "templates/*.templ"]
+start_aws_gha_runner = ["*.templ", "templates/*.templ"]
 
 [tool.pytest.ini_options]
 markers = ["slow: marks test as slow"]
