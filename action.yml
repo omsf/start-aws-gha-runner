@@ -6,16 +6,16 @@ runs:
 inputs:
   aws_home_dir:
     description: "The AWS AMI home directory to use for your runner. Will not start if not specified. For example: `/home/ec2-user`"
-    required: false
+    required: true
   aws_iam_role:
     description: "The optional AWS IAM role to assume for provisioning your runner."
     required: false
   aws_image_id:
     description: "The machine AMI to use for your runner. This AMI can be a default but should have docker installed in the AMI. Will not start if not specified."
-    required: false
+    required: true
   aws_instance_type:
-    description: "The type of instance to use for your runner. For example: t2.micro, t4g.nano, etc.. Will not start if not specified."
-    required: false
+    description: "The type of instance to use for your runner. For example: t2.micro, t4g.nano, etc. Will not start if not specified."
+    required: true
   aws_region_name:
     description: "The AWS region name to use for your runner. Defaults to AWS_REGION."
     required: false
@@ -29,21 +29,21 @@ inputs:
     description: "The AWS tags to use for your runner, formatted as a JSON list. See `README` for more details."
     required: false
   extra_gh_labels:
-    description: "Any extra GitHub lables to tag your runners with. Passed as a comma-seperated list with no spaces."
+    description: "Any extra GitHub labels to tag your runners with. Passed as a comma-separated list with no spaces."
     required: false
   instance_count:
     description: "The number of instances to create, defaults to 1"
     required: true
     default: "1"
   repo:
-    description: "The repo to run against. Will use the the current repo if not specified."
+    description: "The repo to run against. Will use the current repo if not specified."
     required: false
   gh_timeout:
     description: "The timeout in seconds to wait for the runner to come online as seen by the GitHub API. Defaults to 1200 seconds."
-    required: false
+    required: true
     default: "1200"
 outputs:
   mapping:
-    description: "A JSON object mapping instance IDs to unique GitHub runner labels. This is used in conjection with the the `instance_mapping` input when stopping."
+    description: "A JSON object mapping instance IDs to unique GitHub runner labels. This is used in conjunction with the the `instance_mapping` input when stopping."
   instances:
     description: "A JSON list of the GitHub runner labels to be used in the 'runs-on' field"
