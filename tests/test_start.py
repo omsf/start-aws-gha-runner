@@ -1,8 +1,9 @@
 import pytest
 from moto import mock_aws
-from unittest.mock import call, patch, mock_open
+import boto3
+from unittest.mock import call, patch, mock_open, Mock
 from start_aws_gha_runner.start import StartAWS
-from botocore.exceptions import WaiterError
+from botocore.exceptions import WaiterError, ClientError
 
 
 @pytest.fixture(scope="function")
@@ -56,8 +57,8 @@ def test_build_user_data_missing_params(aws):
     with pytest.raises(Exception):
         aws._build_user_data(**params)
 
-
-def test_build_aws_params():
+@pytest.fixture(scope="function")
+def complete_params():
     params = {
         "image_id": "ami-0772db4c976d21e9b",
         "instance_type": "t2.micro",
@@ -68,12 +69,16 @@ def test_build_aws_params():
         "region_name": "us-east-1",
         "gh_runner_tokens": ["testing"],
         "home_dir": "/home/ec2-user",
-        "runner_release": "",
+        "runner_release": "testing",
         "repo": "omsf-eco-infra/awsinfratesting",
         "subnet_id": "test",
         "security_group_id": "test",
         "iam_role": "test",
+        "root_device_size": 100
     }
+    yield params
+
+def test_build_aws_params(complete_params):
     user_data_params = {
         "token": "test",
         "repo": "omsf-eco-infra/awsinfratesting",
@@ -82,7 +87,7 @@ def test_build_aws_params():
         "runner_release": "test.tar.gz",
         "labels": "label",
     }
-    aws = StartAWS(**params)
+    aws = StartAWS(**complete_params)
     params = aws._build_aws_params(user_data_params)
     assert params == {
         "ImageId": "ami-0772db4c976d21e9b",
@@ -114,6 +119,125 @@ tar xzf runner.tar.gz
         ],
     }
 
+def test_modify_root_disk_size(complete_params):
+    mock_client = Mock()
+
+    # Mock image data with all device mappings
+    mock_image_data = {
+        "Images": [{
+            "RootDeviceName": "/dev/sda1",
+            "BlockDeviceMappings": [
+                {
+                    "Ebs": {
+                        "DeleteOnTermination": True,
+                        "VolumeSize": 50,
+                        "VolumeType": "gp3",
+                        "Encrypted": False
+                    },
+                    "DeviceName": "/dev/sda1"
+                },
+                {
+                    "DeviceName": "/dev/sdb",
+                    "VirtualName": "ephemeral0"
+                },
+                {
+                    "DeviceName": "/dev/sdc",
+                    "VirtualName": "ephemeral1"
+                }
+            ]
+        }]
+    }
+
+    def mock_describe_images(**kwargs):
+        if kwargs.get('DryRun', False):
+            raise ClientError(
+                error_response={"Error": {"Code": "DryRunOperation"}},
+                operation_name="DescribeImages"
+            )
+        return mock_image_data
+
+    mock_client.describe_images = mock_describe_images
+    aws = StartAWS(**complete_params)
+    out = aws._modify_root_disk_size(mock_client, {})
+    # Expected output should preserve all devices, only modifying root volume size
+    expected_output = {
+        "BlockDeviceMappings": [
+            {
+                "DeviceName": "/dev/sda1",
+                "Ebs": {
+                    "DeleteOnTermination": True,
+                    "VolumeSize": 100,
+                    "VolumeType": "gp3",
+                    "Encrypted": False
+                }
+            },
+            {
+                "DeviceName": "/dev/sdb",
+                "VirtualName": "ephemeral0"
+            },
+            {
+                "DeviceName": "/dev/sdc",
+                "VirtualName": "ephemeral1"
+            }
+        ]
+    }
+    assert out == expected_output
+
+def test_modify_root_disk_size_permission_error(complete_params):
+    mock_client = Mock()
+
+    # Mock permission denied error
+    mock_client.describe_images.side_effect = ClientError(
+        error_response={'Error': {'Code': 'AccessDenied'}},
+        operation_name='DescribeImages'
+    )
+
+    aws = StartAWS(**complete_params)
+
+    with pytest.raises(ClientError) as exc_info:
+        aws._modify_root_disk_size(mock_client, {})
+
+    assert 'AccessDenied' in str(exc_info.value)
+
+def test_modify_root_disk_size_no_change(complete_params):
+    mock_client = Mock()
+    complete_params["root_device_size"] = 0
+
+    mock_image_data = {
+        "Images": [{
+            "RootDeviceName": "/dev/sda1",
+            "BlockDeviceMappings": [
+                {
+                    "DeviceName": "/dev/sda1",
+                    "Ebs": {
+                        "VolumeSize": 50,
+                        "VolumeType": "gp3"
+                    }
+                },
+                {
+                    "DeviceName": "/dev/sdb",
+                    "VirtualName": "ephemeral0"
+                }
+            ]
+        }]
+    }
+
+    def mock_describe_images(**kwargs):
+        if kwargs.get('DryRun', False):
+            raise ClientError(
+                error_response={'Error': {'Code': 'DryRunOperation'}},
+                operation_name='DescribeImages'
+            )
+        return mock_image_data
+
+    mock_client.describe_images = mock_describe_images
+
+    aws = StartAWS(**complete_params)
+    input_params = {}
+    result = aws._modify_root_disk_size(mock_client, input_params)
+
+    # With root_device_size = 0, no modifications should be made
+    assert result == input_params
 
 def test_create_instance_with_labels(aws):
     aws.labels = "test"

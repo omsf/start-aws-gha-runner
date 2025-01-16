@@ -4,9 +4,11 @@ from string import Template
 import json
 
 import boto3
+from botocore.exceptions import ClientError
 from gha_runner import gh
 from gha_runner.clouddeployment import CreateCloudInstance
 from gha_runner.helper.workflow_cmds import output
+from copy import deepcopy
 
 
 @dataclass
@@ -29,6 +31,8 @@ class StartAWS(CreateCloudInstance):
         A list of tags to apply to the instance. Defaults to an empty list.
     gh_runner_tokens : list[str]
         A list of GitHub runner tokens. Defaults to an empty list.
+    root_device_size : int
+        The size of the root device. Defaults to 0 which uses the default.
     labels : str
         A comma-separated list of labels to apply to the runner. Defaults to an empty string.
     subnet_id : str
@@ -50,6 +54,7 @@ class StartAWS(CreateCloudInstance):
     runner_release: str = ""
     tags: list[dict[str, str]] = field(default_factory=list)
     gh_runner_tokens: list[str] = field(default_factory=list)
+    root_device_size: int = 0
     labels: str = ""
     subnet_id: str = ""
     security_group_id: str = ""
@@ -114,6 +119,44 @@ class StartAWS(CreateCloudInstance):
             except Exception as e:
                 raise Exception(f"Error parsing user data template: {e}")
 
+    def _modify_root_disk_size(self, client, params: dict) -> dict:
+        """ Modify the root disk size of the instance.
+
+        Parameters
+        ----------
+        client
+            The EC2 client object.
+        params : dict
+            The parameters for the instance.
+
+        Returns
+        -------
+        dict
+            The modified parameters
+
+        Raises
+        ------
+        botocore.exceptions.ClientError
+           If the user does not have permissions to describe images.
+        """
+        try:
+            client.describe_images(ImageIds=[self.image_id], DryRun=True)
+        except ClientError as e:
+            # This is the case where we DO have access
+            if "DryRunOperation" in str(e):
+                image_options = client.describe_images(ImageIds=[self.image_id])
+                root_device_name = image_options["Images"][0]["RootDeviceName"]
+                block_devices = deepcopy(image_options["Images"][0]["BlockDeviceMappings"])
+                for idx, block_device in enumerate(block_devices):
+                    if block_device["DeviceName"] == root_device_name:
+                        if self.root_device_size > 0:
+                            block_devices[idx]["Ebs"]["VolumeSize"] = self.root_device_size
+                            params["BlockDeviceMappings"] = block_devices
+                        break
+            else:
+                raise e
+        return params
+
     def create_instances(self) -> dict[str, str]:
         """Create instances on AWS.
 
@@ -164,6 +207,8 @@ class StartAWS(CreateCloudInstance):
                 "labels": labels,
             }
             params = self._build_aws_params(user_data_params)
+            if self.root_device_size > 0:
+                params = self._modify_root_disk_size(ec2, params)
             result = ec2.run_instances(**params)
             instances = result["Instances"]
             id = instances[0]["InstanceId"]
