@@ -1,7 +1,6 @@
-FROM python:3.12-alpine
+FROM python:3.12
 
 ENV PYTHONUNBUFFERED=1
-RUN apk add --no-cache git openssh-client
 RUN mkdir app
 COPY . /app
 RUN pip install --no-cache-dir /app
