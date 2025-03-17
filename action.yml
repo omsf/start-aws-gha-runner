@@ -19,6 +19,9 @@ inputs:
   aws_region_name:
     description: "The AWS region name to use for your runner. Defaults to AWS_REGION."
     required: false
+  aws_root_device_size:
+    description: "The root device size in GB to use for your runner. Optional, defaults to the AMI default."
+    required: false
   aws_security_group_id:
     description: "The AWS security group ID to use for your runner. Will use the account default security group if not specified."
     required: false
