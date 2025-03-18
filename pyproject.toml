@@ -1,6 +1,6 @@
 [project]
 name = "start_aws_gha_runner"
-version = "0.1.0"
+version = "1.0.0"
 description = "Start an AWS GitHub Actions Runner"
 readme = "README.md"
 requires-python = ">=3.12"
