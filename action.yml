@@ -1,4 +1,4 @@
-name: start-aws-ghar-runner
+name: start-aws-gha-runner
 description: A simple GitHub Action for creating a self-hosted runner on AWS.
 runs:
   using: "docker"
@@ -20,7 +20,7 @@ inputs:
     description: "The AWS region name to use for your runner. Defaults to AWS_REGION."
     required: false
   aws_root_device_size:
-    description: "The root device size in GB to use for your runner. Optional, defaults to the AMI default."
+    description: "The root device size in GB to use for your runner. Optional, defaults to the AMI default root disk size."
     required: false
   aws_security_group_id:
     description: "The AWS security group ID to use for your runner. Will use the account default security group if not specified."
@@ -47,6 +47,6 @@ inputs:
     default: "1200"
 outputs:
   mapping:
-    description: "A JSON object mapping instance IDs to unique GitHub runner labels. This is used in conjunction with the the `instance_mapping` input when stopping."
+    description: "A JSON object mapping instance IDs to unique GitHub runner labels. This is used in conjunction with the `instance_mapping` input when stopping."
   instances:
     description: "A JSON list of the GitHub runner labels to be used in the 'runs-on' field"
