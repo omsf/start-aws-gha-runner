@@ -28,7 +28,10 @@ def main():
         .update_state("INPUT_EXTRA_GH_LABELS", "labels")
         .update_state("INPUT_AWS_HOME_DIR", "home_dir")
         .update_state("INPUT_INSTANCE_COUNT", "instance_count", type_hint=int)
-        .update_state("INPUT_AWS_ROOT_DEVICE_SIZE", "root_device_size", type_hint=int)
+        .update_state(
+            "INPUT_AWS_ROOT_DEVICE_SIZE", "root_device_size", type_hint=int
+        )
+        .update_state("INPUT_ARCHITECTURE", "arch")
         # This is the default case
         .update_state("AWS_REGION", "region_name")
         # This is the input case
