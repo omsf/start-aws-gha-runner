@@ -20,6 +20,7 @@ def main():
     builder = (
         EnvVarBuilder(env)
         .update_state("INPUT_AWS_IMAGE_ID", "image_id")
+        .update_state("INPUT_AWS_IMAGE_NAME", "image_name")
         .update_state("INPUT_AWS_INSTANCE_TYPE", "instance_type")
         .update_state("INPUT_AWS_SUBNET_ID", "subnet_id")
         .update_state("INPUT_AWS_SECURITY_GROUP_ID", "security_group_id")
@@ -28,7 +29,9 @@ def main():
         .update_state("INPUT_EXTRA_GH_LABELS", "labels")
         .update_state("INPUT_AWS_HOME_DIR", "home_dir")
         .update_state("INPUT_INSTANCE_COUNT", "instance_count", type_hint=int)
-        .update_state("INPUT_AWS_ROOT_DEVICE_SIZE", "root_device_size", type_hint=int)
+        .update_state(
+            "INPUT_AWS_ROOT_DEVICE_SIZE", "root_device_size", type_hint=int
+        )
         # This is the default case
         .update_state("AWS_REGION", "region_name")
         # This is the input case
