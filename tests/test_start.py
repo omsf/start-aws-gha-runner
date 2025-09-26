@@ -1,5 +1,6 @@
 import pytest
 from moto import mock_aws
+from moto.ec2.models import ec2_backends
 import boto3
 from unittest.mock import call, patch, mock_open, Mock
 from start_aws_gha_runner.start import StartAWS
@@ -26,7 +27,11 @@ def aws_latest_ami():
     with mock_aws():
         params = {
             "image_id": "latest",
-            "image_name": "Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 24.04)",
+            # This comes from https://github.com/getmoto/moto/blob/master/moto/ec2/resources/amis.json
+            # These are AMIs used to mock out data.
+            # For more info see here:
+            # https://docs.getmoto.org/en/latest/docs/services/ec2.html
+            "image_name": "Ubuntu CUDA9 DLAMI",
             "instance_type": "t2.micro",
             "region_name": "us-east-1",
             "gh_runner_tokens": ["testing"],
@@ -284,6 +289,19 @@ def test_fetch_latest_ami(complete_params_latest):
     aws = StartAWS(**complete_params_latest)
     result = aws._fetch_latest_ami(mock_client, "Test")
     assert result == "ami-89121111"
+
+
+def test_create_instances_latest(aws_latest_ami):
+    ids = aws_latest_ami.create_instances()
+    assert len(ids) == 1
+
+
+def test_create_instatnces_latest_no_name(aws_latest_ami):
+    aws_latest_ami.image_name = ""
+    with pytest.raises(
+        ValueError, match="Looking for latest image but name not provided"
+    ):
+        aws_latest_ami.create_instances()
 
 
 def test_create_instance_with_labels(aws):

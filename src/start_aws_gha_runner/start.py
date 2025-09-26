@@ -231,10 +231,6 @@ class StartAWS(CreateCloudInstance):
                 "runner_release": self.runner_release,
                 "labels": labels,
             }
-            if self.image_id == "latest" and not self.image_name:
-                raise ValueError(
-                    "Looking for latest image but name not provided"
-                )
             # We need to handle the case where someone wants to always use latest
             if self.image_id == "latest":
                 if not self.image_name:
