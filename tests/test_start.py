@@ -21,6 +21,22 @@ def aws():
         yield StartAWS(**params)
 
 
+@pytest.fixture(scope="function")
+def aws_latest_ami():
+    with mock_aws():
+        params = {
+            "image_id": "latest",
+            "image_name": "Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 24.04)",
+            "instance_type": "t2.micro",
+            "region_name": "us-east-1",
+            "gh_runner_tokens": ["testing"],
+            "home_dir": "/home/ec2-user",
+            "runner_release": "testing",
+            "repo": "omsf-eco-infra/awsinfratesting",
+        }
+        yield StartAWS(**params)
+
+
 def test_build_user_data(aws):
     params = {
         "homedir": "/home/ec2-user",
@@ -229,6 +245,45 @@ def test_modify_root_disk_size_no_change(complete_params):
 
     # With root_device_size = 0, no modifications should be made
     assert result == input_params
+
+
+@pytest.fixture(scope="function")
+def complete_params_latest():
+    params = {
+        "image_name": "Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04)",
+        "image_id": "latest",
+        "instance_type": "t2.micro",
+        "tags": [
+            {"Key": "Name", "Value": "test"},
+            {"Key": "Owner", "Value": "test"},
+        ],
+        "region_name": "us-east-1",
+        "gh_runner_tokens": ["testing"],
+        "home_dir": "/home/ec2-user",
+        "runner_release": "testing",
+        "repo": "omsf-eco-infra/awsinfratesting",
+        "subnet_id": "test",
+        "security_group_id": "test",
+        "iam_role": "test",
+        "root_device_size": 100,
+    }
+    yield params
+
+
+def test_fetch_latest_ami(complete_params_latest):
+    mock_client = Mock()
+
+    mock_image_data = {
+        "Images": [
+            {"CreationDate": "2025-08-03", "ImageId": "ami-12345678"},
+            {"CreationDate": "2025-08-05", "ImageId": "ami-89123456"},
+            {"CreationDate": "2025-09-05", "ImageId": "ami-89121111"},
+        ]
+    }
+    mock_client.describe_images.return_value = mock_image_data
+    aws = StartAWS(**complete_params_latest)
+    result = aws._fetch_latest_ami(mock_client, "Test")
+    assert result == "ami-89121111"
 
 
 def test_create_instance_with_labels(aws):
