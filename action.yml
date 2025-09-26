@@ -11,8 +11,10 @@ inputs:
     description: "The optional AWS IAM role to assume for provisioning your runner."
     required: false
   aws_image_id:
-    description: "The machine AMI to use for your runner. This AMI can be a default but should have docker installed in the AMI. Will not start if not specified."
+    description: "The machine AMI to use for your runner. This AMI can be a default but should have docker installed in the AMI. Will not start if not specified. If set to `latest`, `aws_image_name` is required"
     required: true
+  aws_image_name:
+    description: "The AMI name. Only required if `aws_image_id` is set to latest. Be as specific as possible. For example: Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 24.04)"
   aws_instance_type:
     description: "The type of instance to use for your runner. For example: t2.micro, t4g.nano, etc. Will not start if not specified."
     required: true
