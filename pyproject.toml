@@ -5,7 +5,7 @@ description = "Start an AWS GitHub Actions Runner"
 readme = "README.md"
 requires-python = ">=3.12"
 authors = [{ name = "Ethan Holz", email = "ethan.holz@omsf.io" }]
-dependencies = ["boto3", "gha_runner"]
+dependencies = ["boto3", "gha_runner >= 0.6.2"] 
 
 [project.optional-dependencies]
 test = ["pytest", "pytest-cov", "moto[ec2]", "responses"]
