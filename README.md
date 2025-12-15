@@ -6,7 +6,8 @@ This repository contains the code to start a GitHub Actions runner on an AWS EC2
 | arch                  | The AMI architecture                                                                                               | true               | x64     |
 | aws_home_dir          | The AWS AMI home directory to use for your runner. Will not start if not specified.                                | true               |         |
 | aws_iam_role          | The optional AWS IAM role to assume for provisioning your runner.                                                  | false              |         |
-| aws_image_id          | The machine AMI to use for your runner. This AMI can be a default but should have docker installed in the AMI.     | true               |         |
+| aws_image_id          | The machine AMI to use for your runner. This AMI can be a default but should have docker installed in the AMI. If set to `latest`, aws_image_name is required     | true               |         |
+| aws_image_name        | The name of AMI you want to use, only required if you don't specify `aws_image_id`                                 | false              |         |
 | aws_instance_type     | The type of instance to use for your runner. For example: t2.micro, t4g.nano, etc. Will not start if not specified.| true               |         |
 | aws_region_name       | The AWS region name to use for your runner. Defaults to AWS_REGION                                                 | true               |         |
 | aws_root_device_size  | The root device size in GB to use for your runner.                                                                 | false              | The AMI default root disk size |
@@ -46,7 +47,8 @@ jobs:
         id: aws-start
         uses: omsf/start-aws-gha-runner@v1.0.0
         with:
-          aws_image_id: ami-0f7c4a792e3fb63c8
+          aws_image_name: "Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 24.04)"
+          aws_image_id: latest
           aws_instance_type: g4dn.xlarge
           aws_home_dir: /home/ubuntu
         env:

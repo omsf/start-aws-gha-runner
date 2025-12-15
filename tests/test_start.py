@@ -1,5 +1,6 @@
 import pytest
 from moto import mock_aws
+from moto.ec2.models import ec2_backends
 import boto3
 from unittest.mock import call, patch, mock_open, Mock
 from start_aws_gha_runner.start import StartAWS
@@ -11,6 +12,26 @@ def aws():
     with mock_aws():
         params = {
             "image_id": "ami-0772db4c976d21e9b",
+            "instance_type": "t2.micro",
+            "region_name": "us-east-1",
+            "gh_runner_tokens": ["testing"],
+            "home_dir": "/home/ec2-user",
+            "runner_release": "testing",
+            "repo": "omsf-eco-infra/awsinfratesting",
+        }
+        yield StartAWS(**params)
+
+
+@pytest.fixture(scope="function")
+def aws_latest_ami():
+    with mock_aws():
+        params = {
+            "image_id": "latest",
+            # This comes from https://github.com/getmoto/moto/blob/master/moto/ec2/resources/amis.json
+            # These are AMIs used to mock out data.
+            # For more info see here:
+            # https://docs.getmoto.org/en/latest/docs/services/ec2.html
+            "image_name": "Ubuntu CUDA9 DLAMI",
             "instance_type": "t2.micro",
             "region_name": "us-east-1",
             "gh_runner_tokens": ["testing"],
@@ -57,6 +78,7 @@ def test_build_user_data_missing_params(aws):
     with pytest.raises(Exception):
         aws._build_user_data(**params)
 
+
 @pytest.fixture(scope="function")
 def complete_params():
     params = {
@@ -74,9 +96,10 @@ def complete_params():
         "subnet_id": "test",
         "security_group_id": "test",
         "iam_role": "test",
-        "root_device_size": 100
+        "root_device_size": 100,
     }
     yield params
+
 
 def test_build_aws_params(complete_params):
     user_data_params = {
@@ -119,40 +142,37 @@ tar xzf runner.tar.gz
         ],
     }
 
+
 def test_modify_root_disk_size(complete_params):
     mock_client = Mock()
 
     # Mock image data with all device mappings
     mock_image_data = {
-        "Images": [{
-            "RootDeviceName": "/dev/sda1",
-            "BlockDeviceMappings": [
-                {
-                    "Ebs": {
-                        "DeleteOnTermination": True,
-                        "VolumeSize": 50,
-                        "VolumeType": "gp3",
-                        "Encrypted": False
+        "Images": [
+            {
+                "RootDeviceName": "/dev/sda1",
+                "BlockDeviceMappings": [
+                    {
+                        "Ebs": {
+                            "DeleteOnTermination": True,
+                            "VolumeSize": 50,
+                            "VolumeType": "gp3",
+                            "Encrypted": False,
+                        },
+                        "DeviceName": "/dev/sda1",
                     },
-                    "DeviceName": "/dev/sda1"
-                },
-                {
-                    "DeviceName": "/dev/sdb",
-                    "VirtualName": "ephemeral0"
-                },
-                {
-                    "DeviceName": "/dev/sdc",
-                    "VirtualName": "ephemeral1"
-                }
-            ]
-        }]
+                    {"DeviceName": "/dev/sdb", "VirtualName": "ephemeral0"},
+                    {"DeviceName": "/dev/sdc", "VirtualName": "ephemeral1"},
+                ],
+            }
+        ]
     }
 
     def mock_describe_images(**kwargs):
-        if kwargs.get('DryRun', False):
+        if kwargs.get("DryRun", False):
             raise ClientError(
                 error_response={"Error": {"Code": "DryRunOperation"}},
-                operation_name="DescribeImages"
+                operation_name="DescribeImages",
             )
         return mock_image_data
 
@@ -168,28 +188,23 @@ def test_modify_root_disk_size(complete_params):
                     "DeleteOnTermination": True,
                     "VolumeSize": 100,
                     "VolumeType": "gp3",
-                    "Encrypted": False
-                }
+                    "Encrypted": False,
+                },
             },
-            {
-                "DeviceName": "/dev/sdb",
-                "VirtualName": "ephemeral0"
-            },
-            {
-                "DeviceName": "/dev/sdc",
-                "VirtualName": "ephemeral1"
-            }
+            {"DeviceName": "/dev/sdb", "VirtualName": "ephemeral0"},
+            {"DeviceName": "/dev/sdc", "VirtualName": "ephemeral1"},
         ]
     }
     assert out == expected_output
+
 
 def test_modify_root_disk_size_permission_error(complete_params):
     mock_client = Mock()
 
     # Mock permission denied error
     mock_client.describe_images.side_effect = ClientError(
-        error_response={'Error': {'Code': 'AccessDenied'}},
-        operation_name='DescribeImages'
+        error_response={"Error": {"Code": "AccessDenied"}},
+        operation_name="DescribeImages",
     )
 
     aws = StartAWS(**complete_params)
@@ -197,36 +212,33 @@ def test_modify_root_disk_size_permission_error(complete_params):
     with pytest.raises(ClientError) as exc_info:
         aws._modify_root_disk_size(mock_client, {})
 
-    assert 'AccessDenied' in str(exc_info.value)
+    assert "AccessDenied" in str(exc_info.value)
+
 
 def test_modify_root_disk_size_no_change(complete_params):
     mock_client = Mock()
     complete_params["root_device_size"] = 0
 
     mock_image_data = {
-        "Images": [{
-            "RootDeviceName": "/dev/sda1",
-            "BlockDeviceMappings": [
-                {
-                    "DeviceName": "/dev/sda1",
-                    "Ebs": {
-                        "VolumeSize": 50,
-                        "VolumeType": "gp3"
-                    }
-                },
-                {
-                    "DeviceName": "/dev/sdb",
-                    "VirtualName": "ephemeral0"
-                }
-            ]
-        }]
+        "Images": [
+            {
+                "RootDeviceName": "/dev/sda1",
+                "BlockDeviceMappings": [
+                    {
+                        "DeviceName": "/dev/sda1",
+                        "Ebs": {"VolumeSize": 50, "VolumeType": "gp3"},
+                    },
+                    {"DeviceName": "/dev/sdb", "VirtualName": "ephemeral0"},
+                ],
+            }
+        ]
     }
 
     def mock_describe_images(**kwargs):
-        if kwargs.get('DryRun', False):
+        if kwargs.get("DryRun", False):
             raise ClientError(
-                error_response={'Error': {'Code': 'DryRunOperation'}},
-                operation_name='DescribeImages'
+                error_response={"Error": {"Code": "DryRunOperation"}},
+                operation_name="DescribeImages",
             )
         return mock_image_data
 
@@ -238,6 +250,59 @@ def test_modify_root_disk_size_no_change(complete_params):
 
     # With root_device_size = 0, no modifications should be made
     assert result == input_params
+
+
+@pytest.fixture(scope="function")
+def complete_params_latest():
+    params = {
+        "image_name": "Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04)",
+        "image_id": "latest",
+        "instance_type": "t2.micro",
+        "tags": [
+            {"Key": "Name", "Value": "test"},
+            {"Key": "Owner", "Value": "test"},
+        ],
+        "region_name": "us-east-1",
+        "gh_runner_tokens": ["testing"],
+        "home_dir": "/home/ec2-user",
+        "runner_release": "testing",
+        "repo": "omsf-eco-infra/awsinfratesting",
+        "subnet_id": "test",
+        "security_group_id": "test",
+        "iam_role": "test",
+        "root_device_size": 100,
+    }
+    yield params
+
+
+def test_fetch_latest_ami(complete_params_latest):
+    mock_client = Mock()
+
+    mock_image_data = {
+        "Images": [
+            {"CreationDate": "2025-08-03", "ImageId": "ami-12345678"},
+            {"CreationDate": "2025-08-05", "ImageId": "ami-89123456"},
+            {"CreationDate": "2025-09-05", "ImageId": "ami-89121111"},
+        ]
+    }
+    mock_client.describe_images.return_value = mock_image_data
+    aws = StartAWS(**complete_params_latest)
+    result = aws._fetch_latest_ami(mock_client, "Test")
+    assert result == "ami-89121111"
+
+
+def test_create_instances_latest(aws_latest_ami):
+    ids = aws_latest_ami.create_instances()
+    assert len(ids) == 1
+
+
+def test_create_instatnces_latest_no_name(aws_latest_ami):
+    aws_latest_ami.image_name = ""
+    with pytest.raises(
+        ValueError, match="Looking for latest image but name not provided"
+    ):
+        aws_latest_ami.create_instances()
+
 
 def test_create_instance_with_labels(aws):
     aws.labels = "test"

@@ -52,6 +52,7 @@ class StartAWS(CreateCloudInstance):
     repo: str
     region_name: str
     runner_release: str = ""
+    image_name: str = ""
     tags: list[dict[str, str]] = field(default_factory=list)
     gh_runner_tokens: list[str] = field(default_factory=list)
     root_device_size: int = 0
@@ -119,8 +120,28 @@ class StartAWS(CreateCloudInstance):
             except Exception as e:
                 raise Exception(f"Error parsing user data template: {e}")
 
+    def _fetch_latest_ami(
+        self, client, ami_name: str, owner: str = "amazon"
+    ) -> str:
+        out = client.describe_images(
+            Owners=[owner],
+            Filters=[
+                {
+                    "Name": "name",
+                    "Values": [f"{ami_name}*"],
+                },
+                {"Name": "state", "Values": ["available"]},
+            ],
+        )
+        images = out.get("Images", [])
+        newest = sorted(images, key=lambda i: i["CreationDate"], reverse=True)[
+            0
+        ]
+
+        return newest["ImageId"]
+
     def _modify_root_disk_size(self, client, params: dict) -> dict:
-        """ Modify the root disk size of the instance.
+        """Modify the root disk size of the instance.
 
         Parameters
         ----------
@@ -146,11 +167,15 @@ class StartAWS(CreateCloudInstance):
             if "DryRunOperation" in str(e):
                 image_options = client.describe_images(ImageIds=[self.image_id])
                 root_device_name = image_options["Images"][0]["RootDeviceName"]
-                block_devices = deepcopy(image_options["Images"][0]["BlockDeviceMappings"])
+                block_devices = deepcopy(
+                    image_options["Images"][0]["BlockDeviceMappings"]
+                )
                 for idx, block_device in enumerate(block_devices):
                     if block_device["DeviceName"] == root_device_name:
                         if self.root_device_size > 0:
-                            block_devices[idx]["Ebs"]["VolumeSize"] = self.root_device_size
+                            block_devices[idx]["Ebs"]["VolumeSize"] = (
+                                self.root_device_size
+                            )
                             params["BlockDeviceMappings"] = block_devices
                         break
             else:
@@ -206,6 +231,14 @@ class StartAWS(CreateCloudInstance):
                 "runner_release": self.runner_release,
                 "labels": labels,
             }
+            # We need to handle the case where someone wants to always use latest
+            if self.image_id == "latest":
+                if not self.image_name:
+                    raise ValueError(
+                        "Looking for latest image but name not provided"
+                    )
+                # This updates the image ID to the latest, will fail if image does not exist
+                self.image_id = self._fetch_latest_ami(ec2, self.image_name)
             params = self._build_aws_params(user_data_params)
             if self.root_device_size > 0:
                 params = self._modify_root_disk_size(ec2, params)
