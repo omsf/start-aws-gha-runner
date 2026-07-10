@@ -10,7 +10,7 @@ This repository contains the code to start a GitHub Actions runner on an AWS EC2
 | aws_image_name        | The name of AMI you want to use, only required if you don't specify `aws_image_id`                                 | false              |         |
 | aws_instance_type     | The type of instance to use for your runner. For example: t2.micro, t4g.nano, etc. Will not start if not specified.| true               |         |
 | aws_market_type       | The EC2 market type: `on-demand` or `spot`.                                                                        | false              | on-demand |
-| aws_spot_max_price    | Max hourly USD price (string) for a spot instance. Only used when `aws_market_type` is `spot`.                     | false              | on-demand price |
+| aws_spot_max_price    | Max hourly USD price (string) for a spot instance. Only used when `aws_market_type` is `spot`.                     | false              | "" (on-demand price cap when `aws_market_type` is `spot`) |
 | aws_region_name       | The AWS region name to use for your runner. Defaults to AWS_REGION                                                 | true               |         |
 | aws_root_device_size  | The root device size in GB to use for your runner.                                                                 | false              | The AMI default root disk size |
 | aws_security_group_id | The AWS security group ID to use for your runner. Will use the account default security group if not specified.    | false              | The default AWS security group |
