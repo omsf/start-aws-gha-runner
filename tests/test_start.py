@@ -143,6 +143,54 @@ tar xzf runner.tar.gz
     }
 
 
+def test_build_aws_params_spot(complete_params):
+    user_data_params = {
+        "token": "test",
+        "repo": "omsf-eco-infra/awsinfratesting",
+        "homedir": "/home/ec2-user",
+        "script": "echo 'Hello, World!'",
+        "runner_release": "test.tar.gz",
+        "labels": "label",
+    }
+    complete_params["market_type"] = "spot"
+    complete_params["spot_max_price"] = "0.50"
+    aws = StartAWS(**complete_params)
+    params = aws._build_aws_params(user_data_params)
+    assert params["InstanceMarketOptions"] == {
+        "MarketType": "spot",
+        "SpotOptions": {"MaxPrice": "0.50"},
+    }
+
+
+def test_build_aws_params_spot_no_max_price(complete_params):
+    user_data_params = {
+        "token": "test",
+        "repo": "omsf-eco-infra/awsinfratesting",
+        "homedir": "/home/ec2-user",
+        "script": "echo 'Hello, World!'",
+        "runner_release": "test.tar.gz",
+        "labels": "label",
+    }
+    complete_params["market_type"] = "spot"
+    aws = StartAWS(**complete_params)
+    params = aws._build_aws_params(user_data_params)
+    assert params["InstanceMarketOptions"] == {"MarketType": "spot"}
+
+
+def test_build_aws_params_on_demand_has_no_market_options(complete_params):
+    user_data_params = {
+        "token": "test",
+        "repo": "omsf-eco-infra/awsinfratesting",
+        "homedir": "/home/ec2-user",
+        "script": "echo 'Hello, World!'",
+        "runner_release": "test.tar.gz",
+        "labels": "label",
+    }
+    aws = StartAWS(**complete_params)
+    params = aws._build_aws_params(user_data_params)
+    assert "InstanceMarketOptions" not in params
+
+
 def test_modify_root_disk_size(complete_params):
     mock_client = Mock()
 
