@@ -143,6 +143,46 @@ tar xzf runner.tar.gz
     }
 
 
+@pytest.mark.parametrize(
+    "market_overrides, expected_market_options",
+    [
+        pytest.param(
+            {"market_type": "spot", "spot_max_price": "0.50"},
+            {"MarketType": "spot", "SpotOptions": {"MaxPrice": "0.50"}},
+            id="spot-with-max-price",
+        ),
+        pytest.param(
+            {"market_type": "spot"},
+            {"MarketType": "spot"},
+            id="spot-no-max-price",
+        ),
+        pytest.param(
+            {},
+            None,
+            id="on-demand-default",
+        ),
+    ],
+)
+def test_build_aws_params_market_options(
+    complete_params, market_overrides, expected_market_options
+):
+    user_data_params = {
+        "token": "test",
+        "repo": "omsf-eco-infra/awsinfratesting",
+        "homedir": "/home/ec2-user",
+        "script": "echo 'Hello, World!'",
+        "runner_release": "test.tar.gz",
+        "labels": "label",
+    }
+    complete_params.update(market_overrides)
+    aws = StartAWS(**complete_params)
+    params = aws._build_aws_params(user_data_params)
+    if expected_market_options is None:
+        assert "InstanceMarketOptions" not in params
+    else:
+        assert params["InstanceMarketOptions"] == expected_market_options
+
+
 def test_modify_root_disk_size(complete_params):
     mock_client = Mock()
 

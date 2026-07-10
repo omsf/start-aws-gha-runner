@@ -27,6 +27,12 @@ class StartAWS(CreateCloudInstance):
         The repository to use.
     region_name : str
         The name of the region to use.
+    market_type : str
+        The EC2 market type, either "on-demand" (default) or "spot".
+    spot_max_price : str
+        The maximum hourly price to pay for a spot instance, as a string.
+        Only used when market_type is "spot". Defaults to an empty string,
+        which uses the on-demand price as the cap.
     tags : list[dict[str, str]]
         A list of tags to apply to the instance. Defaults to an empty list.
     gh_runner_tokens : list[str]
@@ -53,6 +59,8 @@ class StartAWS(CreateCloudInstance):
     region_name: str
     runner_release: str = ""
     image_name: str = ""
+    market_type: str = "on-demand"
+    spot_max_price: str = ""
     tags: list[dict[str, str]] = field(default_factory=list)
     gh_runner_tokens: list[str] = field(default_factory=list)
     root_device_size: int = 0
@@ -92,6 +100,11 @@ class StartAWS(CreateCloudInstance):
         if len(self.tags) > 0:
             specs = {"ResourceType": "instance", "Tags": self.tags}
             params["TagSpecifications"] = [specs]
+        if self.market_type == "spot":
+            market_options = {"MarketType": "spot"}
+            if self.spot_max_price != "":
+                market_options["SpotOptions"] = {"MaxPrice": self.spot_max_price}
+            params["InstanceMarketOptions"] = market_options
 
         return params
 

@@ -18,6 +18,13 @@ inputs:
   aws_instance_type:
     description: "The type of instance to use for your runner. For example: t2.micro, t4g.nano, etc. Will not start if not specified."
     required: true
+  aws_market_type:
+    description: "The EC2 market type: `on-demand` (default) or `spot`."
+    required: false
+    default: "on-demand"
+  aws_spot_max_price:
+    description: "The maximum hourly price (USD, as a string, e.g. `0.50`) to pay for a spot instance. Only used when `aws_market_type` is `spot`. Defaults to the on-demand price if unset."
+    required: false
   aws_region_name:
     description: "The AWS region name to use for your runner. Defaults to AWS_REGION."
     required: false
