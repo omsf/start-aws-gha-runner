@@ -10,6 +10,17 @@ from gha_runner.clouddeployment import CreateCloudInstance
 from gha_runner.helper.workflow_cmds import output
 from copy import deepcopy
 
+# EC2 error codes that mean a subnet is out of capacity rather than
+# misconfigured. These are the only failures that trigger a fallback to
+# the next subnet; everything else is raised immediately.
+CAPACITY_ERROR_CODES = frozenset(
+    {
+        "InsufficientInstanceCapacity",
+        "InsufficientHostCapacity",
+        "Unsupported",
+    }
+)
+
 
 @dataclass
 class StartAWS(CreateCloudInstance):
@@ -42,7 +53,10 @@ class StartAWS(CreateCloudInstance):
     labels : str
         A comma-separated list of labels to apply to the runner. Defaults to an empty string.
     subnet_id : str
-        The ID of the subnet to use. Defaults to an empty string.
+        The ID of the subnet to use. Defaults to an empty string. May be
+        a comma-separated list of subnets, typically one per
+        availability zone, which are tried in order until one has
+        capacity.
     security_group_id : str
         The ID of the security group to use. Defaults to an empty string.
     iam_role : str
@@ -70,13 +84,31 @@ class StartAWS(CreateCloudInstance):
     iam_role: str = ""
     script: str = ""
 
-    def _build_aws_params(self, user_data_params: dict) -> dict:
+    @property
+    def subnet_ids(self) -> list[str]:
+        """The subnets to try, in preference order.
+
+        Returns
+        -------
+        list[str]
+            The non-empty subnet IDs parsed from ``subnet_id``. Empty if
+            no subnet was configured, in which case EC2 picks one.
+
+        """
+        return [s.strip() for s in self.subnet_id.split(",") if s.strip()]
+
+    def _build_aws_params(
+        self, user_data_params: dict, subnet_id: str | None = None
+    ) -> dict:
         """Build the parameters for the AWS API call.
 
         Parameters
         ----------
         user_data_params : dict
             A dictionary of parameters to pass to the user
+        subnet_id : str | None
+            The subnet to launch into. Defaults to the first entry of
+            ``subnet_ids``, or no subnet at all if none are configured.
 
         Returns
         -------
@@ -91,8 +123,11 @@ class StartAWS(CreateCloudInstance):
             "MaxCount": 1,
             "UserData": self._build_user_data(**user_data_params),
         }
-        if self.subnet_id != "":
-            params["SubnetId"] = self.subnet_id
+        if subnet_id is None:
+            subnets = self.subnet_ids
+            subnet_id = subnets[0] if subnets else ""
+        if subnet_id != "":
+            params["SubnetId"] = subnet_id
         if self.security_group_id != "":
             params["SecurityGroupIds"] = [self.security_group_id]
         if self.iam_role != "":
@@ -195,6 +230,54 @@ class StartAWS(CreateCloudInstance):
                 raise e
         return params
 
+    def _run_instances_with_fallback(self, ec2, user_data_params: dict) -> dict:
+        """Launch one instance, falling back through the subnet list.
+
+        Capacity is per availability zone, so each configured subnet is
+        a separate pool. Tries each entry of ``subnet_ids`` in order. A
+        subnet is only skipped when EC2 reports it is out of capacity,
+        so genuine misconfigurations still fail on the first attempt. If
+        every subnet is exhausted, the last error is raised unchanged.
+
+        When no subnet is configured this makes a single attempt and
+        lets EC2 choose, matching the previous behaviour.
+
+        Parameters
+        ----------
+        ec2
+            The EC2 client object.
+        user_data_params : dict
+            A dictionary of parameters to pass to the user data template.
+
+        Returns
+        -------
+        dict
+            The response from ``run_instances``.
+
+        Raises
+        ------
+        botocore.exceptions.ClientError
+            If every configured subnet is out of capacity, or on any
+            other API error.
+
+        """
+        subnets = self.subnet_ids or [""]
+        for idx, subnet_id in enumerate(subnets):
+            params = self._build_aws_params(user_data_params, subnet_id)
+            if self.root_device_size > 0:
+                params = self._modify_root_disk_size(ec2, params)
+            try:
+                return ec2.run_instances(**params)
+            except ClientError as e:
+                code = e.response.get("Error", {}).get("Code", "")
+                is_last = idx == len(subnets) - 1
+                if code not in CAPACITY_ERROR_CODES or is_last:
+                    raise
+                print(
+                    f"No capacity in {subnet_id} ({code}), "
+                    f"falling back to {subnets[idx + 1]}"
+                )
+
     def create_instances(self) -> dict[str, str]:
         """Create instances on AWS.
 
@@ -252,10 +335,7 @@ class StartAWS(CreateCloudInstance):
                     )
                 # This updates the image ID to the latest, will fail if image does not exist
                 self.image_id = self._fetch_latest_ami(ec2, self.image_name)
-            params = self._build_aws_params(user_data_params)
-            if self.root_device_size > 0:
-                params = self._modify_root_disk_size(ec2, params)
-            result = ec2.run_instances(**params)
+            result = self._run_instances_with_fallback(ec2, user_data_params)
             instances = result["Instances"]
             id = instances[0]["InstanceId"]
             id_dict[id] = label

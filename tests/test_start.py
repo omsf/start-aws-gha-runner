@@ -446,3 +446,175 @@ def test_set_instance_mapping(aws, monkeypatch):
         call("mock_output_file", "a"),
         call("mock_output_file", "a"),
     ]
+
+
+@pytest.fixture(scope="function")
+def fallback_params():
+    params = {
+        "image_id": "ami-0772db4c976d21e9b",
+        "instance_type": "t2.micro",
+        "region_name": "us-east-1",
+        "gh_runner_tokens": ["testing"],
+        "home_dir": "/home/ec2-user",
+        "runner_release": "testing",
+        "repo": "omsf-eco-infra/awsinfratesting",
+        "subnet_id": "subnet-a,subnet-b,subnet-c",
+    }
+    yield params
+
+
+def run_instances_error(code="InsufficientInstanceCapacity"):
+    return ClientError(
+        error_response={"Error": {"Code": code}},
+        operation_name="RunInstances",
+    )
+
+
+def requested_subnets(mock_client):
+    return [
+        c.kwargs.get("SubnetId")
+        for c in mock_client.run_instances.call_args_list
+    ]
+
+
+def user_data_fixture():
+    return {
+        "token": "test",
+        "repo": "omsf-eco-infra/awsinfratesting",
+        "homedir": "/home/ec2-user",
+        "script": "echo 'Hello, World!'",
+        "runner_release": "test.tar.gz",
+        "labels": "label",
+    }
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("subnet-a", ["subnet-a"]),
+        ("subnet-a,subnet-b", ["subnet-a", "subnet-b"]),
+        (" subnet-a , subnet-b ", ["subnet-a", "subnet-b"]),
+        ("subnet-a,", ["subnet-a"]),
+        (" , ", []),
+        ("", []),
+    ],
+)
+def test_subnet_ids(complete_params, raw, expected):
+    complete_params["subnet_id"] = raw
+    assert StartAWS(**complete_params).subnet_ids == expected
+
+
+def test_build_aws_params_subnet_override(complete_params):
+    complete_params["subnet_id"] = "subnet-a,subnet-b"
+    aws = StartAWS(**complete_params)
+    # Defaults to the first subnet in the list
+    default = aws._build_aws_params(user_data_fixture())
+    assert default["SubnetId"] == "subnet-a"
+    # An explicit subnet wins
+    override = aws._build_aws_params(user_data_fixture(), "subnet-b")
+    assert override["SubnetId"] == "subnet-b"
+
+
+def test_build_aws_params_no_subnet(complete_params):
+    complete_params["subnet_id"] = ""
+    aws = StartAWS(**complete_params)
+    assert "SubnetId" not in aws._build_aws_params(user_data_fixture())
+
+
+def test_create_instances_falls_back_across_subnets(fallback_params):
+    mock_client = Mock()
+    mock_client.run_instances.side_effect = [
+        run_instances_error(),
+        run_instances_error(),
+        {"Instances": [{"InstanceId": "i-third-az"}]},
+    ]
+    aws = StartAWS(**fallback_params)
+    with patch(
+        "start_aws_gha_runner.start.boto3.client", return_value=mock_client
+    ):
+        ids = aws.create_instances()
+    assert list(ids) == ["i-third-az"]
+    assert requested_subnets(mock_client) == [
+        "subnet-a",
+        "subnet-b",
+        "subnet-c",
+    ]
+
+
+def test_create_instances_no_fallback_when_first_succeeds(fallback_params):
+    mock_client = Mock()
+    mock_client.run_instances.return_value = {
+        "Instances": [{"InstanceId": "i-first"}]
+    }
+    aws = StartAWS(**fallback_params)
+    with patch(
+        "start_aws_gha_runner.start.boto3.client", return_value=mock_client
+    ):
+        ids = aws.create_instances()
+    assert list(ids) == ["i-first"]
+    assert requested_subnets(mock_client) == ["subnet-a"]
+
+
+def test_create_instances_raises_when_all_subnets_exhausted(fallback_params):
+    mock_client = Mock()
+    mock_client.run_instances.side_effect = [
+        run_instances_error(),
+        run_instances_error(),
+        run_instances_error(),
+    ]
+    aws = StartAWS(**fallback_params)
+    with patch(
+        "start_aws_gha_runner.start.boto3.client", return_value=mock_client
+    ):
+        with pytest.raises(ClientError) as exc_info:
+            aws.create_instances()
+    assert "InsufficientInstanceCapacity" in str(exc_info.value)
+    assert requested_subnets(mock_client) == [
+        "subnet-a",
+        "subnet-b",
+        "subnet-c",
+    ]
+
+
+def test_create_instances_does_not_fall_back_on_other_errors(fallback_params):
+    mock_client = Mock()
+    mock_client.run_instances.side_effect = run_instances_error(
+        "UnauthorizedOperation"
+    )
+    aws = StartAWS(**fallback_params)
+    with patch(
+        "start_aws_gha_runner.start.boto3.client", return_value=mock_client
+    ):
+        with pytest.raises(ClientError) as exc_info:
+            aws.create_instances()
+    assert "UnauthorizedOperation" in str(exc_info.value)
+    # A misconfiguration should fail on the first subnet, not burn the list
+    assert requested_subnets(mock_client) == ["subnet-a"]
+
+
+def test_create_instances_unsupported_in_az_falls_back(fallback_params):
+    mock_client = Mock()
+    mock_client.run_instances.side_effect = [
+        run_instances_error("Unsupported"),
+        {"Instances": [{"InstanceId": "i-supported-az"}]},
+    ]
+    aws = StartAWS(**fallback_params)
+    with patch(
+        "start_aws_gha_runner.start.boto3.client", return_value=mock_client
+    ):
+        ids = aws.create_instances()
+    assert list(ids) == ["i-supported-az"]
+
+
+def test_create_instances_no_subnet_attempts_once(fallback_params):
+    fallback_params["subnet_id"] = ""
+    mock_client = Mock()
+    mock_client.run_instances.side_effect = run_instances_error()
+    aws = StartAWS(**fallback_params)
+    with patch(
+        "start_aws_gha_runner.start.boto3.client", return_value=mock_client
+    ):
+        with pytest.raises(ClientError):
+            aws.create_instances()
+    # No subnets configured, so EC2 picks: exactly one attempt
+    assert requested_subnets(mock_client) == [None]

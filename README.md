@@ -14,7 +14,7 @@ This repository contains the code to start a GitHub Actions runner on an AWS EC2
 | aws_region_name       | The AWS region name to use for your runner. Defaults to AWS_REGION                                                 | true               |         |
 | aws_root_device_size  | The root device size in GB to use for your runner.                                                                 | false              | The AMI default root disk size |
 | aws_security_group_id | The AWS security group ID to use for your runner. Will use the account default security group if not specified.    | false              | The default AWS security group |
-| aws_subnet_id         | The AWS subnet ID to use for your runner. Will use the account default subnet if not specified.                    | false              | The default AWS subnet ID |
+| aws_subnet_id         | The AWS subnet ID to use for your runner. Will use the account default subnet if not specified. Accepts a comma-separated list (`subnet-aaa,subnet-bbb`), typically one per availability zone, tried in order until one has capacity.                    | false              | The default AWS subnet ID |
 | aws_tags              | The AWS tags to use for your runner, formatted as a JSON list. See `README` for more details.                      | false              |         |
 | extra_gh_labels       | Any extra GitHub labels to tag your runners with. Passed as a comma-separated list with no spaces.                 | false              |         |
 | instance_count        | The number of instances to create, defaults to 1                                                                   | false              | 1       |
