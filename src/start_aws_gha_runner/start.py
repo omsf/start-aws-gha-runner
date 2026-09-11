@@ -12,6 +12,7 @@ from copy import deepcopy
 
 
 CAPACITY_ERROR_CODES = {
+    "InsufficientFreeAddressesInSubnet",
     "InsufficientHostCapacity",
     "InsufficientInstanceCapacity",
     "Unsupported",

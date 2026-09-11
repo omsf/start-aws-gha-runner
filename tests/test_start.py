@@ -397,6 +397,17 @@ def test_create_instances_falls_back_across_availability_zones(aws, error_code):
     ] == ["us-east-1a", "us-east-1b"]
 
 
+def test_run_instances_requires_an_available_zone(aws):
+    client = Mock()
+
+    with pytest.raises(
+        ValueError, match="No available Availability Zones found"
+    ):
+        aws._run_instances_with_fallback(client, {}, [], 0)
+
+    client.run_instances.assert_not_called()
+
+
 def test_create_instances_raises_after_all_zones_fail(aws):
     client = Mock()
     client.describe_availability_zones.return_value = mock_zones(
