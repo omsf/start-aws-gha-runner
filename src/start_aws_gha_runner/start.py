@@ -40,7 +40,8 @@ class StartAWS(CreateCloudInstance):
     root_device_size : int
         The size of the root device. Defaults to 0 which uses the default.
     labels : str
-        A comma-separated list of labels to apply to the runner. Defaults to an empty string.
+        A comma-separated list of labels to apply to the runner. Defaults to
+        an empty string.
     subnet_id : str
         The ID of the subnet to use. Defaults to an empty string.
     security_group_id : str
@@ -103,7 +104,9 @@ class StartAWS(CreateCloudInstance):
         if self.market_type == "spot":
             market_options = {"MarketType": "spot"}
             if self.spot_max_price != "":
-                market_options["SpotOptions"] = {"MaxPrice": self.spot_max_price}
+                market_options["SpotOptions"] = {
+                    "MaxPrice": self.spot_max_price
+                }
             params["InstanceMarketOptions"] = market_options
 
         return params
@@ -244,13 +247,13 @@ class StartAWS(CreateCloudInstance):
                 "runner_release": self.runner_release,
                 "labels": labels,
             }
-            # We need to handle the case where someone wants to always use latest
+            # Handle the case where someone always wants the latest image.
             if self.image_id == "latest":
                 if not self.image_name:
                     raise ValueError(
                         "Looking for latest image but name not provided"
                     )
-                # This updates the image ID to the latest, will fail if image does not exist
+                # Update the image ID; this fails if the image does not exist.
                 self.image_id = self._fetch_latest_ami(ec2, self.image_name)
             params = self._build_aws_params(user_data_params)
             if self.root_device_size > 0:

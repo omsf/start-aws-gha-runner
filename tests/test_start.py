@@ -1,7 +1,5 @@
 import pytest
 from moto import mock_aws
-from moto.ec2.models import ec2_backends
-import boto3
 from unittest.mock import call, patch, mock_open, Mock
 from start_aws_gha_runner.start import StartAWS
 from botocore.exceptions import WaiterError, ClientError
@@ -51,7 +49,7 @@ def test_build_user_data(aws):
         "labels": "label",
         "runner_release": "test.tar.gz",
     }
-    # We strip this to ensure that we don't have any extra whitespace to fail our test
+    # Strip to ensure extra whitespace does not fail the test.
     user_data = aws._build_user_data(**params).strip()
     # We also strip here
     file = """#!/bin/bash
@@ -62,7 +60,8 @@ export RUNNER_ALLOW_RUNASROOT=1
 # We will get the latest release from the GitHub API
 curl -L test.tar.gz -o runner.tar.gz
 tar xzf runner.tar.gz
-./config.sh --url https://github.com/omsf-eco-infra/awsinfratesting --token test --labels label --ephemeral
+./config.sh --url https://github.com/omsf-eco-infra/awsinfratesting \
+--token test --labels label --ephemeral
 ./run.sh
     """.strip()
     assert user_data == file
@@ -128,7 +127,8 @@ export RUNNER_ALLOW_RUNASROOT=1
 # We will get the latest release from the GitHub API
 curl -L test.tar.gz -o runner.tar.gz
 tar xzf runner.tar.gz
-./config.sh --url https://github.com/omsf-eco-infra/awsinfratesting --token test --labels label --ephemeral
+./config.sh --url https://github.com/omsf-eco-infra/awsinfratesting \
+--token test --labels label --ephemeral
 ./run.sh
 """,
         "TagSpecifications": [
@@ -219,7 +219,7 @@ def test_modify_root_disk_size(complete_params):
     mock_client.describe_images = mock_describe_images
     aws = StartAWS(**complete_params)
     out = aws._modify_root_disk_size(mock_client, {})
-    # Expected output should preserve all devices, only modifying root volume size
+    # Preserve all devices, modifying only the root volume size.
     expected_output = {
         "BlockDeviceMappings": [
             {
@@ -295,7 +295,9 @@ def test_modify_root_disk_size_no_change(complete_params):
 @pytest.fixture(scope="function")
 def complete_params_latest():
     params = {
-        "image_name": "Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04)",
+        "image_name": (
+            "Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04)"
+        ),
         "image_id": "latest",
         "instance_type": "t2.micro",
         "tags": [
