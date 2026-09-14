@@ -467,7 +467,7 @@ def test_create_instances_with_subnet_does_not_select_zone(aws):
     assert "Placement" not in client.run_instances.call_args.kwargs
 
 
-def test_create_instances_requires_an_available_zone(aws):
+def test_create_instances_raises_when_api_has_no_available_zone(aws):
     client = Mock()
     client.describe_availability_zones.return_value = mock_zones()
 
