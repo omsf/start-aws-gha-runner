@@ -35,7 +35,7 @@ inputs:
     description: "The AWS security group ID to use for your runner. Will use the account default security group if not specified."
     required: false
   aws_subnet_id:
-    description: "The AWS subnet ID to use for your runner. Will use the account default subnet if not specified."
+    description: "The AWS subnet ID to use for your runner. If omitted, the action tries the default VPC subnets across available Availability Zones."
     required: false
   aws_tags:
     description: "The AWS tags to use for your runner, formatted as a JSON list. See `README` for more details."
