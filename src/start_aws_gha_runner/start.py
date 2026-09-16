@@ -43,7 +43,8 @@ class StartAWS(CreateCloudInstance):
         A comma-separated list of labels to apply to the runner. Defaults to
         an empty string.
     subnet_id : str
-        The ID of the subnet to use. Defaults to an empty string.
+        The ID of the subnet to use. If omitted, default subnets are tried
+        across the region's available Availability Zones.
     security_group_id : str
         The ID of the security group to use. Defaults to an empty string.
     iam_role : str
@@ -198,6 +199,33 @@ class StartAWS(CreateCloudInstance):
                 raise e
         return params
 
+    def _available_zones(self, client) -> list[str]:
+        """Return the available standard Availability Zones in the region."""
+        result = client.describe_availability_zones(
+            Filters=[
+                {"Name": "state", "Values": ["available"]},
+                {"Name": "zone-type", "Values": ["availability-zone"]},
+            ]
+        )
+        return sorted(zone["ZoneName"] for zone in result["AvailabilityZones"])
+
+    def _run_instances_with_fallback(
+        self, client, params: dict, zones: list[str], start: int
+    ) -> dict:
+        """Run an instance, trying each Availability Zone on AWS errors."""
+        if not zones:
+            raise ValueError("No available Availability Zones found")
+        for offset in range(len(zones)):
+            zone = zones[(start + offset) % len(zones)]
+            try:
+                return client.run_instances(
+                    **params, Placement={"AvailabilityZone": zone}
+                )
+            except ClientError as e:
+                print(f"Failed to launch in {zone}: {e}")
+
+        raise ValueError("Failed to launch in any available Availability Zone")
+
     def create_instances(self) -> dict[str, str]:
         """Create instances on AWS.
 
@@ -231,8 +259,11 @@ class StartAWS(CreateCloudInstance):
                 "No region name provided, cannot create instances."
             )
         ec2 = boto3.client("ec2", region_name=self.region_name)
+        zones = self._available_zones(ec2) if not self.subnet_id else []
+        if not self.subnet_id and not zones:
+            raise ValueError("No available Availability Zones found")
         id_dict = {}
-        for token in self.gh_runner_tokens:
+        for index, token in enumerate(self.gh_runner_tokens):
             label = gh.GitHubInstance.generate_random_label()
             labels = self.labels
             if labels == "":
@@ -258,7 +289,12 @@ class StartAWS(CreateCloudInstance):
             params = self._build_aws_params(user_data_params)
             if self.root_device_size > 0:
                 params = self._modify_root_disk_size(ec2, params)
-            result = ec2.run_instances(**params)
+            if zones:
+                result = self._run_instances_with_fallback(
+                    ec2, params, zones, index % len(zones)
+                )
+            else:
+                result = ec2.run_instances(**params)
             instances = result["Instances"]
             id = instances[0]["InstanceId"]
             id_dict[id] = label
