@@ -11,14 +11,6 @@ from gha_runner.helper.workflow_cmds import output
 from copy import deepcopy
 
 
-CAPACITY_ERROR_CODES = {
-    "InsufficientFreeAddressesInSubnet",
-    "InsufficientHostCapacity",
-    "InsufficientInstanceCapacity",
-    "Unsupported",
-}
-
-
 @dataclass
 class StartAWS(CreateCloudInstance):
     """Class to start GitHub Actions runners on AWS.
@@ -220,7 +212,9 @@ class StartAWS(CreateCloudInstance):
     def _run_instances_with_fallback(
         self, client, params: dict, zones: list[str], start: int
     ) -> dict:
-        """Run an instance, trying each Availability Zone on capacity errors."""
+        """Run an instance, trying each Availability Zone on AWS errors."""
+        if not zones:
+            raise ValueError("No available Availability Zones found")
         for offset in range(len(zones)):
             zone = zones[(start + offset) % len(zones)]
             try:
@@ -228,12 +222,9 @@ class StartAWS(CreateCloudInstance):
                     **params, Placement={"AvailabilityZone": zone}
                 )
             except ClientError as e:
-                code = e.response.get("Error", {}).get("Code")
-                if code not in CAPACITY_ERROR_CODES or offset == len(zones) - 1:
-                    raise
-                print(f"No capacity in {zone} ({code}); trying another AZ")
+                print(f"Failed to launch in {zone}: {e}")
 
-        raise ValueError("No available Availability Zones found")
+        raise ValueError("Failed to launch in any available Availability Zone")
 
     def create_instances(self) -> dict[str, str]:
         """Create instances on AWS.

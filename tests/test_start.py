@@ -408,7 +408,7 @@ def test_run_instances_requires_an_available_zone(aws):
     client.run_instances.assert_not_called()
 
 
-def test_create_instances_raises_after_all_zones_fail(aws):
+def test_create_instances_raises_after_all_zones_fail(aws, capsys):
     client = Mock()
     client.describe_availability_zones.return_value = mock_zones(
         "us-east-1a", "us-east-1b"
@@ -416,10 +416,15 @@ def test_create_instances_raises_after_all_zones_fail(aws):
     client.run_instances.side_effect = [capacity_error(), capacity_error()]
 
     with patch("start_aws_gha_runner.start.boto3.client", return_value=client):
-        with pytest.raises(ClientError, match="InsufficientInstanceCapacity"):
+        with pytest.raises(
+            ValueError, match="Failed to launch in any available"
+        ):
             aws.create_instances()
 
     assert client.run_instances.call_count == 2
+    output = capsys.readouterr().out
+    assert "Failed to launch in us-east-1a" in output
+    assert "Failed to launch in us-east-1b" in output
 
 
 def test_create_instances_distributes_initial_attempts_across_zones(aws):
@@ -438,18 +443,21 @@ def test_create_instances_distributes_initial_attempts_across_zones(aws):
     assert placements == zones + zones[:1]
 
 
-def test_create_instances_does_not_retry_non_capacity_errors(aws):
+def test_create_instances_retries_non_capacity_errors(aws):
     client = Mock()
     client.describe_availability_zones.return_value = mock_zones(
         "us-east-1a", "us-east-1b"
     )
-    client.run_instances.side_effect = capacity_error("UnauthorizedOperation")
+    client.run_instances.side_effect = [
+        capacity_error("InvalidParameterValue"),
+        {"Instances": [{"InstanceId": "i-second-zone"}]},
+    ]
 
     with patch("start_aws_gha_runner.start.boto3.client", return_value=client):
-        with pytest.raises(ClientError, match="UnauthorizedOperation"):
-            aws.create_instances()
+        ids = aws.create_instances()
 
-    client.run_instances.assert_called_once()
+    assert list(ids) == ["i-second-zone"]
+    assert client.run_instances.call_count == 2
 
 
 def test_create_instances_with_subnet_does_not_select_zone(aws):
