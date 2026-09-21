@@ -1,3 +1,4 @@
+import boto3
 import pytest
 from moto import mock_aws
 from unittest.mock import call, patch, mock_open, Mock
@@ -355,6 +356,134 @@ def test_create_instance_with_labels(aws):
 def test_create_instances(aws):
     ids = aws.create_instances()
     assert len(ids) == 1
+
+
+def capacity_error(code="InsufficientInstanceCapacity"):
+    return ClientError(
+        error_response={"Error": {"Code": code}},
+        operation_name="RunInstances",
+    )
+
+
+def mock_zones(*names):
+    return {"AvailabilityZones": [{"ZoneName": name} for name in names]}
+
+
+@pytest.mark.parametrize(
+    "error_code",
+    [
+        "InsufficientHostCapacity",
+        "InsufficientInstanceCapacity",
+        "Unsupported",
+    ],
+)
+def test_create_instances_falls_back_across_availability_zones(aws, error_code):
+    client = Mock()
+    client.describe_availability_zones.return_value = mock_zones(
+        "us-east-1c", "us-east-1a", "us-east-1b"
+    )
+    client.run_instances.side_effect = [
+        capacity_error(error_code),
+        {"Instances": [{"InstanceId": "i-second-zone"}]},
+    ]
+
+    with patch("start_aws_gha_runner.start.boto3.client", return_value=client):
+        ids = aws.create_instances()
+
+    assert list(ids) == ["i-second-zone"]
+    assert [
+        attempt.kwargs["Placement"]["AvailabilityZone"]
+        for attempt in client.run_instances.call_args_list
+    ] == ["us-east-1a", "us-east-1b"]
+
+
+def test_run_instances_requires_an_available_zone(aws):
+    client = Mock()
+
+    with pytest.raises(
+        ValueError, match="No available Availability Zones found"
+    ):
+        aws._run_instances_with_fallback(client, {}, [], 0)
+
+    client.run_instances.assert_not_called()
+
+
+def test_create_instances_raises_after_all_zones_fail(aws, capsys):
+    client = Mock()
+    client.describe_availability_zones.return_value = mock_zones(
+        "us-east-1a", "us-east-1b"
+    )
+    client.run_instances.side_effect = [capacity_error(), capacity_error()]
+
+    with patch("start_aws_gha_runner.start.boto3.client", return_value=client):
+        with pytest.raises(
+            ValueError, match="Failed to launch in any available"
+        ):
+            aws.create_instances()
+
+    assert client.run_instances.call_count == 2
+    output = capsys.readouterr().out
+    assert "Failed to launch in us-east-1a" in output
+    assert "Failed to launch in us-east-1b" in output
+
+
+def test_create_instances_distributes_initial_attempts_across_zones(aws):
+    client = boto3.client("ec2", region_name=aws.region_name)
+    zones = aws._available_zones(client)
+    aws.gh_runner_tokens = ["token"] * (len(zones) + 1)
+
+    ids = aws.create_instances()
+
+    placements = [
+        client.describe_instances(InstanceIds=[instance_id])["Reservations"][0][
+            "Instances"
+        ][0]["Placement"]["AvailabilityZone"]
+        for instance_id in ids
+    ]
+    assert placements == zones + zones[:1]
+
+
+def test_create_instances_retries_non_capacity_errors(aws):
+    client = Mock()
+    client.describe_availability_zones.return_value = mock_zones(
+        "us-east-1a", "us-east-1b"
+    )
+    client.run_instances.side_effect = [
+        capacity_error("InvalidParameterValue"),
+        {"Instances": [{"InstanceId": "i-second-zone"}]},
+    ]
+
+    with patch("start_aws_gha_runner.start.boto3.client", return_value=client):
+        ids = aws.create_instances()
+
+    assert list(ids) == ["i-second-zone"]
+    assert client.run_instances.call_count == 2
+
+
+def test_create_instances_with_subnet_does_not_select_zone(aws):
+    aws.subnet_id = "subnet-123"
+    client = Mock()
+    client.run_instances.return_value = {
+        "Instances": [{"InstanceId": "i-subnet"}]
+    }
+
+    with patch("start_aws_gha_runner.start.boto3.client", return_value=client):
+        aws.create_instances()
+
+    client.describe_availability_zones.assert_not_called()
+    assert client.run_instances.call_args.kwargs["SubnetId"] == "subnet-123"
+    assert "Placement" not in client.run_instances.call_args.kwargs
+
+
+def test_create_instances_raises_when_api_has_no_available_zone(aws):
+    client = Mock()
+    client.describe_availability_zones.return_value = mock_zones()
+
+    with patch("start_aws_gha_runner.start.boto3.client", return_value=client):
+        with pytest.raises(ValueError, match="No available Availability Zones"):
+            aws.create_instances()
+
+    client.run_instances.assert_not_called()
 
 
 def test_create_instances_missing_release(aws):
