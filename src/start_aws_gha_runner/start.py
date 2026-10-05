@@ -201,12 +201,27 @@ class StartAWS(CreateCloudInstance):
 
     def _available_zones(self, client) -> list[str]:
         """Return the available standard Availability Zones in the region."""
-        result = client.describe_availability_zones(
-            Filters=[
-                {"Name": "state", "Values": ["available"]},
-                {"Name": "zone-type", "Values": ["availability-zone"]},
-            ]
-        )
+        try:
+            result = client.describe_availability_zones(
+                Filters=[
+                    {"Name": "state", "Values": ["available"]},
+                    {"Name": "zone-type", "Values": ["availability-zone"]},
+                ]
+            )
+        except ClientError as e:
+            if e.response.get("Error", {}).get("Code") in (
+                "UnauthorizedOperation",
+                "AccessDenied",
+                "AccessDeniedException",
+            ):
+                e.add_note(
+                    "Availability Zone discovery requires "
+                    "ec2:DescribeAvailabilityZones on Resource '*'. "
+                    "Grant this permission to the AWS provisioning role, "
+                    "or set aws_subnet_id to bypass discovery. "
+                    "No EC2 launch was attempted."
+                )
+            raise
         return sorted(zone["ZoneName"] for zone in result["AvailabilityZones"])
 
     def _run_instances_with_fallback(

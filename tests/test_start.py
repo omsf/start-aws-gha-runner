@@ -372,6 +372,39 @@ def mock_zones(*names):
 @pytest.mark.parametrize(
     "error_code",
     [
+        "UnauthorizedOperation",
+        "AccessDenied",
+        "AccessDeniedException",
+        "RequestLimitExceeded",
+    ],
+)
+def test_create_instances_discovery_error(aws, error_code):
+    client = Mock()
+    error = ClientError(
+        error_response={"Error": {"Code": error_code}},
+        operation_name="DescribeAvailabilityZones",
+    )
+    client.describe_availability_zones.side_effect = error
+
+    with patch("start_aws_gha_runner.start.boto3.client", return_value=client):
+        with pytest.raises(ClientError) as exc_info:
+            aws.create_instances()
+
+    assert exc_info.value is error
+    client.run_instances.assert_not_called()
+    if error_code == "RequestLimitExceeded":
+        assert not getattr(error, "__notes__", [])
+    else:
+        note = " ".join(error.__notes__)
+        assert "ec2:DescribeAvailabilityZones" in note
+        assert "Resource '*'" in note
+        assert "aws_subnet_id" in note
+        assert "No EC2 launch was attempted" in note
+
+
+@pytest.mark.parametrize(
+    "error_code",
+    [
         "InsufficientHostCapacity",
         "InsufficientInstanceCapacity",
         "Unsupported",

@@ -20,6 +20,26 @@ This repository contains the code to start a GitHub Actions runner on an AWS EC2
 | instance_count        | The number of instances to create, defaults to 1                                                                   | false              | 1       |
 | repo     | The repo to run against. Will use the current repo if not specified.       | false    | The repo the runner is running in |
 | gh_timeout            | The timeout in seconds to wait for the runner to come online as seen by the GitHub API. Defaults to 1200 seconds.  | false              | 1200    |
+
+## AWS permissions
+
+Starting with v1.4, when `aws_subnet_id` is omitted, the action discovers
+Availability Zones before attempting any EC2 launch. In addition to the existing
+runner provisioning permissions, the AWS provisioning role needs:
+
+```json
+{
+  "Effect": "Allow",
+  "Action": "ec2:DescribeAvailabilityZones",
+  "Resource": "*"
+}
+```
+
+Add this statement to the role's IAM policy. If discovery is denied, the action
+fails without attempting a launch; it does not silently disable AZ fallback.
+Alternatively, set `aws_subnet_id` to use a specific subnet and bypass discovery
+(and cross-AZ fallback).
+
 ## Outputs
 | Name | Description |
 | ---- | ----------- |
